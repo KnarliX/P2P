@@ -4,40 +4,126 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P File Transfer</title>
+    <link rel="icon" href="p2p.ico" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #6a11cb, #2575fc);
+            color: #fff;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            margin-top: 20px;
+        }
+        .container {
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+        }
+        input[type="file"], button {
+            display: block;
+            margin: 15px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        input[type="file"] {
+            background: #fff;
+            color: #000;
+        }
+        button {
+            background: #00c853;
+            color: #fff;
+        }
+        button:hover {
+            background: #008c3a;
+        }
+        #linkOutput {
+            margin: 10px 0;
+            word-wrap: break-word;
+        }
+        .credit {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-    <h1>Peer-to-Peer File Sharing</h1>
-    <div id="sender-section">
-        <input type="file" id="fileInput">
-        <button id="generateLink">Generate Link</button>
-        <p id="linkOutput"></p>
+    <h1>P2P File Transfer</h1>
+    <div class="container">
+        <div id="sender-section">
+            <input type="file" id="fileInput">
+            <button id="generateLink">Generate Link</button>
+            <p id="linkOutput" class="hidden"></p>
+            <button id="copyLink" class="hidden">Copy Link</button>
+        </div>
+        <div id="receiver-section" class="hidden">
+            <button id="downloadFile">Download File</button>
+        </div>
     </div>
-
-    <div id="receiver-section">
-        <h3>Receiver</h3>
-        <button id="receiveFile">Download File</button>
+    <div class="credit">
+        Created by <strong>KnarliX</strong>
     </div>
 
     <script>
         const peerConnection = new RTCPeerConnection();
         let dataChannel = null;
+        const fileInput = document.getElementById('fileInput');
+        const generateLinkBtn = document.getElementById('generateLink');
+        const linkOutput = document.getElementById('linkOutput');
+        const copyLinkBtn = document.getElementById('copyLink');
+        const downloadBtn = document.getElementById('downloadFile');
+        const senderSection = document.getElementById('sender-section');
+        const receiverSection = document.getElementById('receiver-section');
 
-        document.getElementById('generateLink').addEventListener('click', async () => {
-            const fileInput = document.getElementById('fileInput');
+        // Check if user came via a link
+        const params = new URLSearchParams(window.location.search);
+        const offer = params.get('offer');
+
+        if (offer) {
+            senderSection.classList.add('hidden');
+            receiverSection.classList.remove('hidden');
+        }
+
+        generateLinkBtn.addEventListener('click', async () => {
             if (fileInput.files.length === 0) {
-                alert("Please select a file!");
+                alert('Please select a file!');
                 return;
             }
 
             const file = fileInput.files[0];
-            dataChannel = peerConnection.createDataChannel("fileChannel");
+            dataChannel = peerConnection.createDataChannel('fileChannel');
+            dataChannel.onopen = () => console.log('Data channel is open!');
+            dataChannel.onmessage = (event) => {
+                console.log('Received:', event.data);
+            };
 
-            dataChannel.onopen = () => console.log("Data channel is open!");
+            dataChannel.onopen = () => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const chunks = reader.result;
+                    dataChannel.send(chunks);
+                    alert('File sent successfully!');
+                };
+                reader.readAsArrayBuffer(file);
+            };
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     const link = `${window.location.href}?offer=${btoa(JSON.stringify(peerConnection.localDescription))}`;
-                    document.getElementById('linkOutput').textContent = `Share this link: ${link}`;
+                    linkOutput.textContent = link;
+                    linkOutput.classList.remove('hidden');
+                    copyLinkBtn.classList.remove('hidden');
                 }
             };
 
@@ -45,27 +131,24 @@
             await peerConnection.setLocalDescription(offer);
         });
 
-        document.getElementById('receiveFile').addEventListener('click', async () => {
-            const params = new URLSearchParams(window.location.search);
-            const offer = params.get('offer');
+        copyLinkBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(linkOutput.textContent).then(() => {
+                alert('Link copied to clipboard!');
+            });
+        });
 
-            if (!offer) {
-                alert("No offer found in the link!");
-                return;
-            }
-
+        downloadBtn.addEventListener('click', async () => {
             const remoteDescription = JSON.parse(atob(offer));
             await peerConnection.setRemoteDescription(remoteDescription);
 
             peerConnection.ondatachannel = (event) => {
-                event.channel.onmessage = (e) => {
+                const receivedChannel = event.channel;
+                receivedChannel.onmessage = (e) => {
                     const receivedBlob = new Blob([e.data]);
                     const downloadLink = document.createElement('a');
                     downloadLink.href = URL.createObjectURL(receivedBlob);
-                    downloadLink.download = "received_file";
-                    document.body.appendChild(downloadLink);
+                    downloadLink.download = 'received_file';
                     downloadLink.click();
-                    document.body.removeChild(downloadLink);
                 };
             };
 
