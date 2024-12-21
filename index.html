@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P File Transfer</title>
+</head>
+<body>
+    <h1>Peer-to-Peer File Sharing</h1>
+    <div id="sender-section">
+        <input type="file" id="fileInput">
+        <button id="generateLink">Generate Link</button>
+        <p id="linkOutput"></p>
+    </div>
+
+    <div id="receiver-section">
+        <h3>Receiver</h3>
+        <button id="receiveFile">Download File</button>
+    </div>
+
+    <script>
+        const peerConnection = new RTCPeerConnection();
+        let dataChannel = null;
+
+        document.getElementById('generateLink').addEventListener('click', async () => {
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) {
+                alert("Please select a file!");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            dataChannel = peerConnection.createDataChannel("fileChannel");
+
+            dataChannel.onopen = () => console.log("Data channel is open!");
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const link = `${window.location.href}?offer=${btoa(JSON.stringify(peerConnection.localDescription))}`;
+                    document.getElementById('linkOutput').textContent = `Share this link: ${link}`;
+                }
+            };
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+        });
+
+        document.getElementById('receiveFile').addEventListener('click', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const offer = params.get('offer');
+
+            if (!offer) {
+                alert("No offer found in the link!");
+                return;
+            }
+
+            const remoteDescription = JSON.parse(atob(offer));
+            await peerConnection.setRemoteDescription(remoteDescription);
+
+            peerConnection.ondatachannel = (event) => {
+                event.channel.onmessage = (e) => {
+                    const receivedBlob = new Blob([e.data]);
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(receivedBlob);
+                    downloadLink.download = "received_file";
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                };
+            };
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+        });
+    </script>
+</body>
+</html>
