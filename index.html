@@ -3,27 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P File Transfer</title>
+    <title>P2P File Transfer - Upload</title>
     <link rel="icon" href="p2p.ico" type="image/x-icon">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #6a11cb, #2575fc);
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a237e, #0d47a1);
             color: #fff;
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
             margin: 0;
-            padding: 0;
-        }
-        h1 {
-            margin-top: 20px;
         }
         .container {
-            margin: 20px auto;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.6);
             padding: 20px;
-            background: rgba(0, 0, 0, 0.3);
             border-radius: 10px;
             width: 90%;
-            max-width: 500px;
+            max-width: 400px;
+        }
+        h1 {
+            margin: 10px 0;
         }
         input[type="file"], button {
             display: block;
@@ -39,122 +42,98 @@
             color: #000;
         }
         button {
-            background: #00c853;
+            background: #4caf50;
             color: #fff;
         }
         button:hover {
-            background: #008c3a;
+            background: #2e7d32;
+        }
+        .progress-bar {
+            margin-top: 15px;
+            width: 100%;
+            height: 10px;
+            background: #fff;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-bar div {
+            height: 100%;
+            background: #4caf50;
+            width: 0;
+            transition: width 0.3s;
         }
         #linkOutput {
-            margin: 10px 0;
-            word-wrap: break-word;
+            margin-top: 10px;
+            word-break: break-word;
         }
         .credit {
             margin-top: 20px;
             font-size: 14px;
         }
-        .hidden {
-            display: none;
-        }
     </style>
 </head>
 <body>
-    <h1>P2P File Transfer</h1>
     <div class="container">
-        <div id="sender-section">
-            <input type="file" id="fileInput">
-            <button id="generateLink">Generate Link</button>
-            <p id="linkOutput" class="hidden"></p>
-            <button id="copyLink" class="hidden">Copy Link</button>
+        <h1>P2P File Transfer</h1>
+        <input type="file" id="fileInput">
+        <button id="uploadButton">Upload & Generate Link</button>
+        <div class="progress-bar" id="uploadProgress">
+            <div></div>
         </div>
-        <div id="receiver-section" class="hidden">
-            <button id="downloadFile">Download File</button>
-        </div>
+        <p id="linkOutput"></p>
+        <button id="copyLinkButton" style="display: none;">Copy Link</button>
     </div>
-    <div class="credit">
-        Created by <strong>KnarliX</strong>
-    </div>
+    <div class="credit">Created by <strong>KnarliX</strong></div>
 
     <script>
-        const peerConnection = new RTCPeerConnection();
-        let dataChannel = null;
         const fileInput = document.getElementById('fileInput');
-        const generateLinkBtn = document.getElementById('generateLink');
+        const uploadButton = document.getElementById('uploadButton');
+        const uploadProgress = document.getElementById('uploadProgress').firstElementChild;
         const linkOutput = document.getElementById('linkOutput');
-        const copyLinkBtn = document.getElementById('copyLink');
-        const downloadBtn = document.getElementById('downloadFile');
-        const senderSection = document.getElementById('sender-section');
-        const receiverSection = document.getElementById('receiver-section');
+        const copyLinkButton = document.getElementById('copyLinkButton');
 
-        // Check if user came via a link
-        const params = new URLSearchParams(window.location.search);
-        const offer = params.get('offer');
-
-        if (offer) {
-            senderSection.classList.add('hidden');
-            receiverSection.classList.remove('hidden');
-        }
-
-        generateLinkBtn.addEventListener('click', async () => {
-            if (fileInput.files.length === 0) {
-                alert('Please select a file!');
+        uploadButton.addEventListener('click', () => {
+            if (!fileInput.files.length) {
+                alert('Please select a file to upload!');
                 return;
             }
 
             const file = fileInput.files[0];
-            dataChannel = peerConnection.createDataChannel('fileChannel');
-            dataChannel.onopen = () => console.log('Data channel is open!');
-            dataChannel.onmessage = (event) => {
-                console.log('Received:', event.data);
+            const reader = new FileReader();
+
+            reader.onload = (event) => {
+                const data = event.target.result;
+                // Simulate file upload to server and generate link
+                simulateUpload(file, data);
             };
 
-            dataChannel.onopen = () => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const chunks = reader.result;
-                    dataChannel.send(chunks);
-                    alert('File sent successfully!');
-                };
-                reader.readAsArrayBuffer(file);
-            };
+            reader.readAsArrayBuffer(file);
+        });
 
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    const link = `${window.location.href}?offer=${btoa(JSON.stringify(peerConnection.localDescription))}`;
+        function simulateUpload(file, data) {
+            let progress = 0;
+
+            const interval = setInterval(() => {
+                progress += 10;
+                uploadProgress.style.width = `${progress}%`;
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+
+                    // Simulate generated link
+                    const link = `${window.location.origin}/download.html?file=${encodeURIComponent(file.name)}`;
                     linkOutput.textContent = link;
-                    linkOutput.classList.remove('hidden');
-                    copyLinkBtn.classList.remove('hidden');
+                    linkOutput.style.color = '#4caf50';
+                    copyLinkButton.style.display = 'block';
                 }
-            };
+            }, 500);
 
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-        });
-
-        copyLinkBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(linkOutput.textContent).then(() => {
-                alert('Link copied to clipboard!');
+            copyLinkButton.addEventListener('click', () => {
+                navigator.clipboard.writeText(linkOutput.textContent).then(() => {
+                    alert('Link copied to clipboard!');
+                });
             });
-        });
-
-        downloadBtn.addEventListener('click', async () => {
-            const remoteDescription = JSON.parse(atob(offer));
-            await peerConnection.setRemoteDescription(remoteDescription);
-
-            peerConnection.ondatachannel = (event) => {
-                const receivedChannel = event.channel;
-                receivedChannel.onmessage = (e) => {
-                    const receivedBlob = new Blob([e.data]);
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = URL.createObjectURL(receivedBlob);
-                    downloadLink.download = 'received_file';
-                    downloadLink.click();
-                };
-            };
-
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-        });
+        }
     </script>
 </body>
 </html>
